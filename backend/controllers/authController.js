@@ -1,0 +1,182 @@
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import User from '../models/User.js';
+import { getMongoStatus } from '../config/db.js';
+import { loadStoredUsers, persistUsers } from '../config/storage.js';
+
+const adminEmail = process.env.ADMIN_EMAIL || 'admin@blog.com';
+const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+const hashedAdminPassword = bcrypt.hashSync(adminPassword, 10);
+
+const defaultUsers = [
+  {
+    _id: 'admin_master',
+    name: 'Site Administrator',
+    email: adminEmail.toLowerCase(),
+    password: hashedAdminPassword,
+    role: 'admin',
+    createdAt: new Date().toISOString(),
+  },
+];
+
+// Persistent user store
+export let memoryUsers = loadStoredUsers(defaultUsers);
+
+// Ensure admin exists in stored users
+if (!memoryUsers.some((u) => u.email === adminEmail.toLowerCase())) {
+  memoryUsers.unshift(defaultUsers[0]);
+  persistUsers(memoryUsers);
+}
+
+export const findMemoryUserById = (id) => {
+  const user = memoryUsers.find((u) => u._id === id);
+  if (!user) return null;
+  const { password, ...userWithoutPass } = user;
+  return userWithoutPass;
+};
+
+const generateToken = (id) => {
+  return jwt.sign(
+    { id },
+    process.env.JWT_SECRET || 'supersecretjwtkey_123456789_mern_blog',
+    { expiresIn: '30d' }
+  );
+};
+
+export const ensureAdminAccount = async () => {
+  if (!getMongoStatus()) return;
+  try {
+    const existing = await User.findOne({ email: adminEmail.toLowerCase() });
+    if (!existing) {
+      await User.create({
+        name: 'Site Administrator',
+        email: adminEmail.toLowerCase(),
+        password: adminPassword,
+        role: 'admin',
+      });
+      console.log(`[Auth] Master Administrator account provisioned: ${adminEmail}`);
+    }
+  } catch (err) {
+    console.error('[Auth] Failed to seed admin account in DB:', err.message);
+  }
+};
+
+export const registerUser = async (req, res) => {
+  const { name, email, password } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ message: 'Name, email, and password are required.' });
+  }
+
+  const assignedRole = 'user';
+
+  try {
+    if (getMongoStatus()) {
+      const userExists = await User.findOne({ email: email.toLowerCase() });
+      if (userExists) {
+        return res.status(400).json({ message: 'An account with this email already exists.' });
+      }
+
+      const user = await User.create({
+        name,
+        email: email.toLowerCase(),
+        password,
+        role: assignedRole,
+      });
+
+      return res.status(201).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id),
+      });
+    }
+
+    // In-memory persistent mode
+    const userExists = memoryUsers.find((u) => u.email === email.toLowerCase());
+    if (userExists) {
+      return res.status(400).json({ message: 'An account with this email already exists.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const newUser = {
+      _id: 'user_' + Date.now(),
+      name,
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      role: assignedRole,
+      createdAt: new Date().toISOString(),
+    };
+
+    memoryUsers.push(newUser);
+    persistUsers(memoryUsers); // Save to disk immediately
+
+    return res.status(201).json({
+      _id: newUser._id,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role,
+      token: generateToken(newUser._id),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const loginUser = async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Please provide both email and password.' });
+  }
+
+  try {
+    if (getMongoStatus()) {
+      const user = await User.findOne({ email: email.toLowerCase() });
+      if (user && (await user.matchPassword(password))) {
+        return res.json({
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          token: generateToken(user._id),
+        });
+      }
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    // In-memory persistent mode
+    const user = memoryUsers.find((u) => u.email === email.toLowerCase());
+    if (user && (await bcrypt.compare(password, user.password))) {
+      return res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id),
+      });
+    }
+    return res.status(401).json({ message: 'Invalid email or password.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const getMe = async (req, res) => {
+  res.json(req.user);
+};
+
+export const getAllUsers = async (req, res) => {
+  try {
+    if (getMongoStatus()) {
+      const users = await User.find().select('-password');
+      return res.json(users);
+    }
+    const safeUsers = memoryUsers.map(({ password, ...u }) => u);
+    return res.json(safeUsers);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
