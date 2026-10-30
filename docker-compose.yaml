@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # 1. MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: mern-mongodb
+    restart: always
+    env_file:
+      - ./.env   
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - mern-network
+
+  # 2. Mongo-Express Dashboard
+  mongo-express:
+    image: mongo-express
+    container_name: mern-mongo-express
+    restart: always
+    ports:
+      - "8081:8081"
+    env_file:
+      - ./.env   
+    environment:
+      ME_CONFIG_BASICAUTH: "true"
+      PORT: 8081
+    depends_on:
+      - mongodb
+    networks:
+      - mern-network
+  
+  # 3. Node.js Backend API
+  backend:
+    build: ./backend
+    container_name: mern-backend
+    restart: always
+    env_file:
+      - ./.env  
+    depends_on:
+      - mongodb
+    networks:
+      - mern-network
+  
+  # 4. React Frontend + Nginx
+  frontend:
+    build: ./frontend
+    container_name: mern-frontend
+    restart: always
+    ports:
+      - "80:8080"  
+    depends_on:
+      - backend
+    networks:
+      - mern-network
+
+volumes:
+  mongo-data:
+
+networks:
+  mern-network:

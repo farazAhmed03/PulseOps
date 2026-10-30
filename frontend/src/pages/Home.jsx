@@ -1,145 +1,309 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import API from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
-  const [posts, setPosts] = useState([]);
+  const { user } = useAuth();
+  const [prompts, setPrompts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('All');
+  const [model, setModel] = useState('All');
+  const [sort, setSort] = useState('newest');
+  const [copiedId, setCopiedId] = useState(null);
+  const [categoriesStats, setCategoriesStats] = useState(null);
 
-  const fetchArticles = async () => {
+  const categories = [
+    'All',
+    'DevOps & Cloud',
+    'Software Development',
+    'System Architecture',
+    'AI Art & Midjourney',
+    'Writing & Copywriting',
+    'Data & Analytics',
+  ];
+
+  const models = ['All', 'ChatGPT', 'Claude', 'Gemini', 'Midjourney', 'General / Any LLM'];
+
+  const fetchPrompts = async () => {
     try {
       setLoading(true);
-      const res = await API.get('/posts');
-      setPosts(res.data);
+      const params = {};
+      if (search) params.search = search;
+      if (category !== 'All') params.category = category;
+      if (model !== 'All') params.model = model;
+      if (sort !== 'newest') params.sort = sort;
+
+      const [promptsRes, catRes] = await Promise.all([
+        API.get('/prompts', { params }),
+        API.get('/prompts/categories').catch(() => ({ data: null })),
+      ]);
+
+      setPrompts(promptsRes.data || []);
+      setCategoriesStats(catRes.data);
     } catch (err) {
-      console.error('Failed to load articles:', err);
+      console.error('Failed to load prompts:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchArticles();
-  }, []);
+    fetchPrompts();
+  }, [category, model, sort]);
 
-  // Filter posts based on search input
-  const filteredPosts = posts.filter((post) => {
-    const q = searchTerm.toLowerCase();
-    const titleMatch = post.title.toLowerCase().includes(q);
-    const contentMatch = post.content.toLowerCase().includes(q);
-    const categoryMatch = (post.category || '').toLowerCase().includes(q);
-    const authorMatch = (post.author || '').toLowerCase().includes(q);
-    return titleMatch || contentMatch || categoryMatch || authorMatch;
-  });
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    fetchPrompts();
+  };
+
+  const handleCopy = async (promptObj) => {
+    try {
+      await navigator.clipboard.writeText(promptObj.prompt);
+      setCopiedId(promptObj._id);
+
+      // Track copy in backend
+      await API.post(`/prompts/${promptObj._id}/copy`).catch(() => {});
+
+      // Update local count
+      setPrompts((prev) =>
+        prev.map((p) => (p._id === promptObj._id ? { ...p, copies: (p.copies || 0) + 1 } : p))
+      );
+
+      setTimeout(() => {
+        setCopiedId(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
+  };
+
+  const handleLike = async (promptId) => {
+    if (!user) {
+      alert('Please sign in to upvote prompts!');
+      return;
+    }
+
+    try {
+      const res = await API.post(`/prompts/${promptId}/like`);
+      setPrompts((prev) =>
+        prev.map((p) => {
+          if (p._id === promptId) {
+            const hasLiked = p.likes?.includes(user._id);
+            const newLikes = hasLiked
+              ? p.likes.filter((id) => id !== user._id)
+              : [...(p.likes || []), user._id];
+            return { ...p, likes: newLikes };
+          }
+          return p;
+        })
+      );
+    } catch (err) {
+      console.error('Failed to like prompt:', err);
+    }
+  };
+
+  const getModelBadgeClass = (m) => {
+    if (m === 'Claude') return 'badge-claude';
+    if (m === 'ChatGPT') return 'badge-chatgpt';
+    if (m === 'Midjourney') return 'badge-midjourney';
+    if (m === 'Gemini') return 'badge-gemini';
+    return 'badge-general';
+  };
 
   return (
     <div className="container">
-      {/* Hero */}
-      <section className="hero-banner">
-        <span className="hero-tag">Technology & Systems</span>
-        <h1>Engineering & Architecture Journal</h1>
-        <p>In-depth technical perspectives, system design patterns, and cloud deployment guides.</p>
+      {/* Hero Section */}
+      <section className="home-hero">
+        <div className="hero-badge">⚡ OPEN-SOURCE PROMPT ENGINEERING PLATFORM</div>
+        <h1 className="hero-main-title">
+          Master AI with <span className="gradient-text">Battle-Tested</span> Prompts
+        </h1>
+        <p className="hero-desc">
+          Discover, copy, and share high-performance prompts for DevOps, Software Architecture, Full-Stack Coding,
+          and Creative Generative AI.
+        </p>
+
+        {/* Global Search Bar */}
+        <form onSubmit={handleSearchSubmit} className="hero-search-form">
+          <div className="search-input-wrapper">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder="Search prompts by keyword, language, or use-case (e.g. Docker, Kubernetes, Security)..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="main-search-input"
+            />
+            {search && (
+              <button
+                type="button"
+                className="clear-search-btn"
+                onClick={() => {
+                  setSearch('');
+                  fetchPrompts();
+                }}
+              >
+                ✕
+              </button>
+            )}
+            <button type="submit" className="btn-search-submit">
+              Search
+            </button>
+          </div>
+        </form>
       </section>
 
-      {/* Search Bar */}
-      <div className="search-section">
-        <div className="search-bar-container">
-          <svg className="search-icon" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-              clipRule="evenodd"
-            />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search articles by title, category, or author..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-          {searchTerm && (
-            <button className="search-clear-btn" onClick={() => setSearchTerm('')}>
-              Clear
+      {/* Filter Row: Categories */}
+      <div className="filters-container">
+        <div className="category-chips">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              className={`cat-chip ${category === cat ? 'active' : ''}`}
+              onClick={() => setCategory(cat)}
+            >
+              {cat}
+              {categoriesStats?.categories?.[cat] && (
+                <span className="chip-count">{categoriesStats.categories[cat]}</span>
+              )}
             </button>
-          )}
+          ))}
+        </div>
+
+        {/* Secondary Controls: Target Model & Sort */}
+        <div className="secondary-filters">
+          <div className="filter-group">
+            <label className="filter-label">Target Model:</label>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="filter-select"
+            >
+              {models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label className="filter-label">Sort By:</label>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className="filter-select"
+            >
+              <option value="newest">🕒 Newest First</option>
+              <option value="popular">📋 Most Copied</option>
+              <option value="liked">❤️ Most Liked</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Section Header */}
-      <div className="section-header">
-        <div>
-          <h2>
-            {searchTerm ? `Search Results for "${searchTerm}"` : 'Featured Articles'}
-          </h2>
-          <p className="section-sub">
-            {searchTerm
-              ? `Found ${filteredPosts.length} matching publication(s)`
-              : 'Latest technical publications and software engineering insights'}
-          </p>
-        </div>
-        <span className="count-pill">
-          {filteredPosts.length} {filteredPosts.length === 1 ? 'Article' : 'Articles'}
-        </span>
+      {/* Prompt Cards Grid */}
+      <div className="prompts-section-header">
+        <h2>
+          Community Prompts{' '}
+          <span className="count-tag">({prompts.length})</span>
+        </h2>
+        {category !== 'All' && (
+          <span className="active-filter-indicator">
+            Filtered by: <strong>{category}</strong>
+          </span>
+        )}
       </div>
 
-      {/* Articles Grid */}
       {loading ? (
         <div className="loading-state">
           <div className="spinner"></div>
-          <p>Loading publications...</p>
+          <p>Loading curated prompt library...</p>
         </div>
-      ) : filteredPosts.length === 0 ? (
+      ) : prompts.length === 0 ? (
         <div className="empty-state">
-          <h3>No articles match your search</h3>
-          <p>Try searching for a different keyword or check back later for new articles.</p>
-          {searchTerm && (
-            <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => setSearchTerm('')}>
-              Clear Search Query
-            </button>
-          )}
+          <h3>No Prompts Found</h3>
+          <p>Try searching for a different keyword or select another category.</p>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setSearch('');
+              setCategory('All');
+              setModel('All');
+            }}
+          >
+            Reset Filters
+          </button>
         </div>
       ) : (
-        <div className="articles-grid">
-          {filteredPosts.map((post) => (
-            <article key={post._id} className="article-card">
-              <div className="article-card-header">
-                {/* DYNAMIC USER-DEFINED CATEGORY */}
-                <span className="article-category">{post.category || 'General'}</span>
-                <span className="article-date">
-                  {new Date(post.createdAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </span>
-              </div>
+        <div className="prompts-grid">
+          {prompts.map((p) => {
+            const isCopied = copiedId === p._id;
+            const hasLiked = user && p.likes?.includes(user._id);
 
-              <div className="article-card-body">
-                <h3>
-                  <Link to={`/posts/${post._id}`}>{post.title}</Link>
-                </h3>
-                <p className="article-excerpt">
-                  {post.content.length > 160
-                    ? `${post.content.substring(0, 160)}...`
-                    : post.content}
-                </p>
-              </div>
-
-              <div className="article-card-footer">
-                <div className="author-info">
-                  <div className="author-avatar">
-                    {(post.author || 'E')[0].toUpperCase()}
+            return (
+              <div key={p._id} className="prompt-card">
+                {/* Card Top: Badges */}
+                <div className="card-top-row">
+                  <div className="badges-group">
+                    <span className="cat-badge">{p.category}</span>
+                    <span className={`model-badge ${getModelBadgeClass(p.targetModel)}`}>
+                      {p.targetModel}
+                    </span>
+                    {p.isFeatured && <span className="featured-star">★ Featured</span>}
                   </div>
-                  <span className="author-name">{post.author || 'Editorial Staff'}</span>
+                  <div className="card-stat-pill">
+                    📋 {p.copies || 0} copies
+                  </div>
                 </div>
-                <Link to={`/posts/${post._id}`} className="read-link">
-                  Read Article →
-                </Link>
+
+                {/* Title & Description */}
+                <h3 className="prompt-card-title">{p.title}</h3>
+                <p className="prompt-card-desc">{p.description}</p>
+
+                {/* Prompt Box */}
+                <div className="prompt-content-box">
+                  <pre className="prompt-text-preview">{p.prompt}</pre>
+                </div>
+
+                {/* Tags */}
+                {p.tags && p.tags.length > 0 && (
+                  <div className="tags-row">
+                    {p.tags.slice(0, 4).map((tag, idx) => (
+                      <span key={idx} className="tag-item">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Card Footer Actions */}
+                <div className="card-footer">
+                  <div className="author-info">
+                    <span className="author-name">By {p.author || 'Community Member'}</span>
+                  </div>
+
+                  <div className="card-actions">
+                    <button
+                      className={`btn-like ${hasLiked ? 'liked' : ''}`}
+                      onClick={() => handleLike(p._id)}
+                      title="Upvote prompt"
+                    >
+                      ❤️ {p.likes?.length || 0}
+                    </button>
+
+                    <button
+                      className={`btn-copy ${isCopied ? 'copied' : ''}`}
+                      onClick={() => handleCopy(p)}
+                    >
+                      {isCopied ? '✅ Copied!' : '📋 Copy Prompt'}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </article>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

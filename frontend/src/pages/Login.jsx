@@ -35,7 +35,7 @@ export default function Login() {
       <div className="auth-card">
         <div className="auth-card-header">
           <h2>Sign In</h2>
-          <p>Access your account to manage publications and preferences.</p>
+          <p>Access your PromptVerse workspace to manage and publish AI prompts.</p>
         </div>
 
         {error && <div className="alert-error">{error}</div>}

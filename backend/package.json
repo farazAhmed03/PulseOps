@@ -1,6 +1,7 @@
 {
-  "name": "blog-backend",
+  "name": "promptverse-backend",
   "version": "1.0.0",
+  "description": "PromptVerse - Open AI Prompt Engineering & Community Hub API",
   "main": "server.js",
   "type": "module",
   "scripts": {

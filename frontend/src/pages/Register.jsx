@@ -32,7 +32,7 @@ export default function Register() {
       <div className="auth-card">
         <div className="auth-card-header">
           <h2>Create Account</h2>
-          <p>Sign up to join our engineering community and discussions.</p>
+          <p>Sign up to save, share, and organize your AI prompts.</p>
         </div>
 
         {error && <div className="alert-error">{error}</div>}

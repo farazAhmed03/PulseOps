@@ -1,52 +1,64 @@
-import React, { useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import React from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
-  const { user, logout, isAdmin } = useContext(AuthContext);
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  const isActive = (path) => (location.pathname === path ? 'nav-link active' : 'nav-link');
+
   return (
     <nav className="navbar">
       <div className="nav-container">
+        {/* Brand Logo */}
         <Link to="/" className="brand-logo">
-          <span className="brand-accent">Dev</span>Journal
+          <div className="brand-icon">⚡</div>
+          <div className="brand-text">
+            <span className="brand-title">PromptVerse</span>
+            <span className="brand-sub">AI PROMPT HUB</span>
+          </div>
         </Link>
 
-        <div className="nav-links">
-          <Link to="/" className="nav-link">
-            Articles
+        {/* Center Nav Links */}
+        <div className="nav-menu">
+          <Link to="/" className={isActive('/')}>
+            🔍 Explore Prompts
           </Link>
 
           {user && (
-            <>
-              <Link to="/my-articles" className="nav-link">
-                My Articles
-              </Link>
-              <Link to="/my-articles?new=true" className="btn-write-nav">
-                + Write Article
-              </Link>
-            </>
-          )}
-
-          {isAdmin && (
-            <Link to="/admin" className="nav-link admin-pill">
-              Admin Dashboard
+            <Link to="/my-prompts" className={isActive('/my-prompts')}>
+              📝 My Prompts
             </Link>
           )}
 
+          <Link to="/guide" className={isActive('/guide')}>
+            📖 User Guide (EN)
+          </Link>
+
+          {user && user.role === 'admin' && (
+            <Link to="/admin" className={isActive('/admin')}>
+              🛡️ Admin Console
+            </Link>
+          )}
+        </div>
+
+        {/* Right Nav Action */}
+        <div className="nav-auth">
           {user ? (
-            <div className="user-section">
-              <div className="user-badge-wrapper">
+            <div className="user-profile-menu">
+              <Link to="/my-prompts" className="btn-create-prompt">
+                + Create Prompt
+              </Link>
+              <div className="user-badge">
+                <span className="user-avatar">{user.name ? user.name[0].toUpperCase() : 'U'}</span>
                 <span className="user-name">{user.name}</span>
-                <span className={`badge ${user.role === 'admin' ? 'badge-admin' : 'badge-user'}`}>
-                  {user.role}
-                </span>
               </div>
               <button onClick={handleLogout} className="btn-logout">
                 Sign Out
@@ -54,10 +66,10 @@ export default function Navbar() {
             </div>
           ) : (
             <div className="auth-btns">
-              <Link to="/login" className="btn-login-link">
+              <Link to="/login" className="btn-signin">
                 Sign In
               </Link>
-              <Link to="/register" className="btn-register-link">
+              <Link to="/register" className="btn-signup">
                 Get Started
               </Link>
             </div>

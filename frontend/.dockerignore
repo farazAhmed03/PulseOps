@@ -1,0 +1,37 @@
+# Dependency directories
+**/node_modules
+**/npm-debug.log*
+**/yarn-error.log*
+
+# Environment and sensitive files
+**/.env
+**/.env.*
+*.pem
+*.key
+
+# Git and version control
+**/.git
+**/.gitignore
+**/.github
+
+# Docker files
+**/Dockerfile*
+**/.dockerignore
+docker-compose*.yml
+
+# Documentation and testing
+**/README.md
+**/docs
+**/coverage
+**/.nyc_output
+**/tests
+**/*.test.js
+**/*.spec.js
+
+# Build outputs (if building locally)
+**/build
+**/dist
+
+# Nginx temporary/log files
+**/nginx/logs
+**/nginx/*.log

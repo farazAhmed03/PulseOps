@@ -4,10 +4,10 @@ import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
-import PostDetails from './pages/PostDetails';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import MyBlogs from './pages/MyBlogs';
+import MyPrompts from './pages/MyPrompts';
+import UserGuide from './pages/UserGuide';
 import AdminDashboard from './pages/AdminDashboard';
 
 export default function App() {
@@ -18,23 +18,41 @@ export default function App() {
           <Navbar />
           <main className="main-content">
             <Routes>
-              {/* Public Routes */}
+              {/* Public Exploration & Guide */}
               <Route path="/" element={<Home />} />
-              <Route path="/posts/:id" element={<PostDetails />} />
+              <Route path="/guide" element={<UserGuide />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
 
-              {/* Protected User Workspace (My Articles) */}
+              {/* Protected Personal Prompt Workspace */}
               <Route
-                path="/my-articles"
+                path="/my-prompts"
                 element={
                   <ProtectedRoute>
-                    <MyBlogs />
+                    <MyPrompts />
                   </ProtectedRoute>
                 }
               />
 
-              {/* Protected Admin Route (Master Admin Console) */}
+              {/* Backward compatibility */}
+              <Route
+                path="/my-monitors"
+                element={
+                  <ProtectedRoute>
+                    <MyPrompts />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-articles"
+                element={
+                  <ProtectedRoute>
+                    <MyPrompts />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Protected Admin Console */}
               <Route
                 path="/admin"
                 element={

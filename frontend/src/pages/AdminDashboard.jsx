@@ -1,347 +1,179 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import API from '../services/api';
-import { AuthContext } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function AdminDashboard() {
-  const { user } = useContext(AuthContext);
-
-  const [stats, setStats] = useState({ totalPosts: 0, totalUsers: 0 });
-  const [posts, setPosts] = useState([]);
+  const { user } = useAuth();
+  const [prompts, setPrompts] = useState([]);
   const [users, setUsers] = useState([]);
-  const [activeTab, setActiveTab] = useState('posts');
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('prompts');
 
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('');
-  const [content, setContent] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [feedback, setFeedback] = useState({ text: '', type: '' });
-
-  const loadDashboardData = async () => {
+  const fetchData = async () => {
     try {
-      const [statsRes, postsRes, usersRes] = await Promise.all([
-        API.get('/posts/admin/stats'),
-        API.get('/posts'),
-        API.get('/auth/users'),
+      setLoading(true);
+      const [promptsRes, usersRes] = await Promise.all([
+        API.get('/prompts'),
+        API.get('/auth/users').catch(() => ({ data: [] })),
       ]);
-      setStats(statsRes.data);
-      setPosts(postsRes.data);
-      setUsers(usersRes.data);
+      setPrompts(promptsRes.data || []);
+      setUsers(usersRes.data || []);
     } catch (err) {
-      console.error('Failed to load dashboard data:', err);
+      console.error('Failed to load admin data:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDashboardData();
+    fetchData();
   }, []);
 
-  const notify = (text, type = 'success') => {
-    setFeedback({ text, type });
-    setTimeout(() => setFeedback({ text: '', type: '' }), 4000);
-  };
-
-  const handleSaveArticle = async (e) => {
-    e.preventDefault();
-    if (!title.trim() || !content.trim()) {
-      notify('Both title and content are required.', 'error');
-      return;
-    }
-
+  const handleDeletePrompt = async (id) => {
+    if (!window.confirm('Admin Action: Permanently delete this prompt?')) return;
     try {
-      if (editingId) {
-        await API.put(`/posts/${editingId}`, {
-          title,
-          category: category.trim() || 'General',
-          content,
-        });
-        notify('Article updated successfully.');
-        setEditingId(null);
-      } else {
-        await API.post('/posts', {
-          title,
-          category: category.trim() || 'General',
-          content,
-        });
-        notify('Article published successfully.');
-      }
-
-      setTitle('');
-      setCategory('');
-      setContent('');
-      setActiveTab('posts');
-      loadDashboardData();
+      await API.delete(`/prompts/${id}`);
+      setPrompts((prev) => prev.filter((p) => p._id !== id));
     } catch (err) {
-      notify(err.response?.data?.message || 'Action failed.', 'error');
+      alert('Delete failed: ' + err.message);
     }
   };
 
-  const handleEdit = (post) => {
-    setEditingId(post._id);
-    setTitle(post.title);
-    setCategory(post.category || 'General');
-    setContent(post.content);
-    setActiveTab('create');
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to permanently delete this article?')) return;
+  const handleToggleFeatured = async (p) => {
     try {
-      await API.delete(`/posts/${id}`);
-      notify('Article deleted successfully.');
-      loadDashboardData();
+      const res = await API.put(`/prompts/${p._id}`, { isFeatured: !p.isFeatured });
+      setPrompts((prev) => prev.map((item) => (item._id === p._id ? res.data : item)));
     } catch (err) {
-      notify(err.response?.data?.message || 'Failed to delete article.', 'error');
+      alert('Failed to toggle featured status: ' + err.message);
     }
   };
 
-  const handleCancel = () => {
-    setEditingId(null);
-    setTitle('');
-    setCategory('');
-    setContent('');
-  };
+  const totalCopies = prompts.reduce((acc, p) => acc + (p.copies || 0), 0);
 
   return (
-    <div className="container admin-container">
-      <div className="admin-header-row">
+    <div className="container">
+      <div className="admin-header">
         <div>
-          <h1>Administration Console</h1>
-          <p className="admin-sub">
-            Logged in as <strong>{user?.name}</strong> • Authorized as Administrator
-          </p>
+          <span className="admin-badge">CLUSTER IAM & MODERATION</span>
+          <h1>Admin Management Console</h1>
+          <p className="admin-sub">Platform-wide prompt curation, community metrics, and user management.</p>
         </div>
       </div>
 
-      {feedback.text && (
-        <div className={`notification-banner ${feedback.type}`}>
-          {feedback.text}
+      {/* Admin KPI Cards */}
+      <div className="admin-kpi-grid">
+        <div className="admin-kpi-card">
+          <span className="kpi-label">Total Prompts</span>
+          <span className="kpi-number">{prompts.length}</span>
+          <span className="kpi-foot">Published across all categories</span>
         </div>
-      )}
-
-      {/* KPI Stats */}
-      <div className="metrics-grid">
-        <div className="metric-card">
-          <div className="metric-header">
-            <span className="metric-label">Published Articles</span>
-            <span className="metric-pill">Active</span>
-          </div>
-          <div className="metric-value">{stats.totalPosts}</div>
-          <span className="metric-foot">Available in public catalog</span>
+        <div className="admin-kpi-card">
+          <span className="kpi-label">Total Community Copies</span>
+          <span className="kpi-number">{totalCopies}</span>
+          <span className="kpi-foot">Platform utility metric</span>
         </div>
-
-        <div className="metric-card">
-          <div className="metric-header">
-            <span className="metric-label">Registered Accounts</span>
-            <span className="metric-pill">Verified</span>
-          </div>
-          <div className="metric-value">{stats.totalUsers}</div>
-          <span className="metric-foot">Platform members & contributors</span>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-header">
-            <span className="metric-label">Access Level</span>
-            <span className="metric-pill success">Authorized</span>
-          </div>
-          <div className="metric-value">Superuser</div>
-          <span className="metric-foot">Full CRUD & permissions granted</span>
+        <div className="admin-kpi-card">
+          <span className="kpi-label">Registered Users</span>
+          <span className="kpi-number">{users.length}</span>
+          <span className="kpi-foot">Engineers & Creators</span>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="admin-nav-tabs">
+      {/* Admin Navigation Tabs */}
+      <div className="admin-tabs">
         <button
-          className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('posts'); handleCancel(); }}
+          className={`admin-tab-btn ${activeTab === 'prompts' ? 'active' : ''}`}
+          onClick={() => setActiveTab('prompts')}
         >
-          Articles Directory ({posts.length})
+          📝 Prompt Moderation ({prompts.length})
         </button>
         <button
-          className={`tab-link ${activeTab === 'create' ? 'active' : ''}`}
-          onClick={() => setActiveTab('create')}
+          className={`admin-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+          onClick={() => setActiveTab('users')}
         >
-          {editingId ? 'Edit Article' : 'Compose Article'}
-        </button>
-        <button
-          className={`tab-link ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('users'); handleCancel(); }}
-        >
-          User Accounts ({users.length})
+          👥 User Directory ({users.length})
         </button>
       </div>
 
-      {/* TAB 1: ARTICLES TABLE */}
-      {activeTab === 'posts' && (
-        <div className="panel-card">
-          <div className="panel-card-header">
-            <h3>Published Content Management</h3>
-            <button className="btn-secondary-sm" onClick={() => setActiveTab('create')}>
-              + New Article
-            </button>
-          </div>
-
-          {posts.length === 0 ? (
-            <div className="empty-panel">No articles found in database.</div>
-          ) : (
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Article Title</th>
-                    <th>Category</th>
-                    <th>Author</th>
-                    <th>Published On</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {posts.map((post) => (
-                    <tr key={post._id}>
-                      <td className="table-title">{post.title}</td>
-                      <td>
-                        <span className="category-pill">{post.category || 'General'}</span>
-                      </td>
-                      <td>{post.author || 'Editorial Staff'}</td>
-                      <td>
-                        {new Date(post.createdAt).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          className="btn-action edit"
-                          onClick={() => handleEdit(post)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn-action delete"
-                          onClick={() => handleDelete(post._id)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {loading ? (
+        <div className="loading-state">
+          <div className="spinner"></div>
+          <p>Loading admin console...</p>
         </div>
-      )}
-
-      {/* TAB 2: COMPOSE / EDIT FORM */}
-      {activeTab === 'create' && (
-        <div className="panel-card">
-          <div className="panel-card-header">
-            <h3>{editingId ? 'Update Article' : 'Publish New Article'}</h3>
-          </div>
-
-          <form onSubmit={handleSaveArticle} className="admin-form">
-            <div className="form-group">
-              <label>Article Title *</label>
-              <input
-                type="text"
-                placeholder="Enter a descriptive, engaging article headline..."
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Category / Topic</label>
-              <input
-                type="text"
-                placeholder="e.g. Cloud Architecture, AI, DevOps, General"
-                list="admin-category-suggestions"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              />
-              <datalist id="admin-category-suggestions">
-                <option value="Cloud Architecture" />
-                <option value="Backend Development" />
-                <option value="Web Development" />
-                <option value="Artificial Intelligence" />
-                <option value="DevOps & Infrastructure" />
-                <option value="Cybersecurity" />
-                <option value="General" />
-              </datalist>
-            </div>
-
-            <div className="form-group">
-              <label>Article Content *</label>
-              <textarea
-                rows="8"
-                placeholder="Compose the full body of the technical publication..."
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-              />
-            </div>
-
-            <div className="form-actions-row">
-              <button type="submit" className="btn-primary">
-                {editingId ? 'Save Changes' : 'Publish Article'}
-              </button>
-              {editingId && (
-                <button
-                  type="button"
-                  className="btn-cancel"
-                  onClick={() => {
-                    handleCancel();
-                    setActiveTab('posts');
-                  }}
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 3: USER DIRECTORY */}
-      {activeTab === 'users' && (
-        <div className="panel-card">
-          <div className="panel-card-header">
-            <h3>Registered User Directory</h3>
-          </div>
-
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Email</th>
-                  <th>Permission Role</th>
-                  <th>Member Since</th>
+      ) : activeTab === 'prompts' ? (
+        <div className="admin-table-container">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Title & Category</th>
+                <th>Target Model</th>
+                <th>Author</th>
+                <th>Copies</th>
+                <th>Featured</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prompts.map((p) => (
+                <tr key={p._id}>
+                  <td>
+                    <strong>{p.title}</strong>
+                    <div className="table-subtext">{p.category}</div>
+                  </td>
+                  <td>
+                    <span className="model-badge">{p.targetModel}</span>
+                  </td>
+                  <td>{p.author || 'Anonymous'}</td>
+                  <td>📋 {p.copies || 0}</td>
+                  <td>
+                    <button
+                      className={`btn-featured-toggle ${p.isFeatured ? 'featured' : ''}`}
+                      onClick={() => handleToggleFeatured(p)}
+                    >
+                      {p.isFeatured ? '★ Featured' : '☆ Standard'}
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      className="btn-delete-sm"
+                      onClick={() => handleDeletePrompt(p._id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u._id}>
-                    <td className="table-title">{u.name}</td>
-                    <td>{u.email}</td>
-                    <td>
-                      <span className={`role-pill ${u.role === 'admin' ? 'admin' : 'user'}`}>
-                        {u.role.toUpperCase()}
-                      </span>
-                    </td>
-                    <td>
-                      {u.createdAt
-                        ? new Date(u.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
-                        : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="admin-table-container">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email Address</th>
+                <th>Assigned Role</th>
+                <th>Registered Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u._id}>
+                  <td>
+                    <strong>{u.name}</strong>
+                  </td>
+                  <td>{u.email}</td>
+                  <td>
+                    <span className={`role-pill ${u.role === 'admin' ? 'admin' : 'user'}`}>
+                      {u.role.toUpperCase()}
+                    </span>
+                  </td>
+                  <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
