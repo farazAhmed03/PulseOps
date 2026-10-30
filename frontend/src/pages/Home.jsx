@@ -21,6 +21,7 @@ export default function Home() {
     'AI Art & Midjourney',
     'Writing & Copywriting',
     'Data & Analytics',
+    'General Productivity',
   ];
 
   const models = ['All', 'ChatGPT', 'Claude', 'Gemini', 'Midjourney', 'General / Any LLM'];

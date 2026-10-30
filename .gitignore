@@ -18,6 +18,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Private Personal Prompts & Vault (Faraz Exclusive)
+*.me
+prompts.me
+faraz.me
+
 # System files
 .DS_Store
 Thumbs.db

@@ -1,155 +1,35 @@
 import Prompt from '../models/Prompt.js';
 import User from '../models/User.js';
 import { getMongoStatus } from '../config/db.js';
-
-// Pre-seeded Battle-Tested Prompts
-const initialSeedPrompts = [
-  {
-    _id: 'seed_prompt_1',
-    title: 'Production Dockerfile Architect for Node.js / Python',
-    description: 'Generates secure, multi-stage, non-root production Dockerfiles with minimal image layers and optimal caching.',
-    category: 'DevOps & Cloud',
-    targetModel: 'Claude',
-    tags: ['docker', 'devops', 'security', 'containers'],
-    author: 'Staff DevOps Engineer',
-    prompt: `You are a Principal Cloud & DevOps Security Engineer. Your task is to write a hardened, production-ready multi-stage Dockerfile for a [LANGUAGE/FRAMEWORK, e.g. Node.js 20 / Python 3.11] application.
-
-Requirements:
-1. Multi-Stage Build: Builder stage for installing dependencies and compiling build artifacts, runtime stage using a lightweight minimal base (Alpine or Distroless).
-2. Zero-Root Privilege: Must execute as a non-privileged user (e.g. USER node / USER appuser).
-3. Layer Optimization: Copy package manifests first to leverage Docker build cache.
-4. Clean Signals: Handle PID 1 graceful shutdown (SIGTERM/SIGINT) with tini or node directly.
-5. Provide a matching .dockerignore file and a sample docker run command with environment variables.`,
-    copies: 142,
-    likes: [],
-    isFeatured: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: 'seed_prompt_2',
-    title: 'Kubernetes Resilient Pod Deployment & Ingress Generator',
-    description: 'Creates complete, production-grade Kubernetes manifests including Deployment, ClusterIP Service, Ingress, and Health Probes.',
-    category: 'DevOps & Cloud',
-    targetModel: 'ChatGPT',
-    tags: ['kubernetes', 'k8s', 'cloud', 'devops'],
-    author: 'Cloud Architect',
-    prompt: `Act as a Senior Kubernetes Reliability Engineer. Generate a comprehensive Kubernetes manifest YAML for deploying a microservice named "[SERVICE_NAME]" in namespace "[NAMESPACE]".
-
-Must include:
-- Deployment with [REPLICAS, e.g. 3] replicas, rollingUpdate strategy (maxSurge: 1, maxUnavailable: 0).
-- Resource requests and limits (CPU and Memory).
-- Liveness and Readiness probes using HTTP GET endpoints at "/healthz" and "/ready".
-- ClusterIP Service exposing port [PORT, e.g. 8080].
-- Nginx Ingress resource with TLS annotations and path "/[ROUTE_PREFIX]".
-- HorizontalPodAutoscaler (HPA) targeting 70% average CPU utilization.`,
-    copies: 98,
-    likes: [],
-    isFeatured: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: 'seed_prompt_3',
-    title: 'Full-Stack Code Security & Vulnerability Auditor',
-    description: 'Thoroughly reviews code for OWASP Top 10 vulnerabilities, SQL injection, XSS, and memory leaks with remediation patches.',
-    category: 'Software Development',
-    targetModel: 'Claude',
-    tags: ['security', 'code-review', 'owasp', 'audit'],
-    author: 'AppSec Specialist',
-    prompt: `You are a Lead Application Security (AppSec) Auditor. Review the following code snippet written in [LANGUAGE/FRAMEWORK]:
-
-Code:
-\`\`\`[LANGUAGE]
-[PASTE_CODE_HERE]
-\`\`\`
-
-Perform an in-depth security audit focusing on:
-1. OWASP Top 10 Vulnerabilities (SQL/NoSQL Injection, XSS, Broken Access Control, CSRF, Sensitive Data Exposure).
-2. Concurrency, Race Conditions, and Memory Management risks.
-3. Insecure Dependencies or outdated cryptography algorithms.
-For each vulnerability found:
-- Explain the exploit scenario and severity (Critical / High / Medium).
-- Provide the exact corrected code snippet with defense-in-depth best practices.`,
-    copies: 215,
-    likes: [],
-    isFeatured: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: 'seed_prompt_4',
-    title: 'Distributed System Architecture & High-Availability Designer',
-    description: 'Designs scalable, fault-tolerant cloud architectures with database replication, caching, and message queues.',
-    category: 'System Architecture',
-    targetModel: 'Claude',
-    tags: ['system-design', 'architecture', 'scalability', 'microservices'],
-    author: 'Principal Systems Architect',
-    prompt: `Act as a Senior Distributed Systems Architect. Design a scalable, resilient system architecture for [USE_CASE, e.g. a real-time ride-sharing dispatch system handling 100k requests/sec].
-
-Your design document must cover:
-1. High-Level Architecture Diagram (described in text / Mermaid diagram).
-2. Data Flow & Ingestion: API Gateway, Load Balancers, Event Streaming (Kafka / RabbitMQ).
-3. Database Strategy: Primary storage (SQL vs NoSQL), Read Replicas, Partitioning / Sharding, and Cache Layer (Redis cluster).
-4. Failure Scenarios & Mitigation: Circuit breakers, graceful degradation, and cross-region disaster recovery (RTO/RPO targets).
-5. Observability Plan: Distributed tracing, metrics aggregation, and alert thresholds.`,
-    copies: 176,
-    likes: [],
-    isFeatured: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: 'seed_prompt_5',
-    title: 'Automated GitHub Actions CI/CD Pipeline Architect',
-    description: 'Builds end-to-end GitHub Actions workflow YAML for automated linting, testing, Docker image building, and AWS EC2 deployment.',
-    category: 'DevOps & Cloud',
-    targetModel: 'General / Any LLM',
-    tags: ['github-actions', 'ci-cd', 'automation', 'aws'],
-    author: 'DevOps Lead',
-    prompt: `Act as an expert CI/CD Pipeline Automation Engineer. Create a production-ready GitHub Actions workflow file (\`.github/workflows/deploy.yml\`) for a [TECH_STACK, e.g. Node.js React & Docker] application.
-
-Pipeline Requirements:
-1. Trigger on push and pull requests to "main" branch.
-2. Job 1 (CI): Linting, unit tests, and build check across Matrix Node versions.
-3. Job 2 (Docker Build & Scan): Multi-stage Docker build with vulnerability scanning (Trivy or Docker Scout).
-4. Job 3 (CD / Deploy): Securely SSH into remote AWS EC2 Ubuntu instance using GitHub Repository Secrets (EC2_HOST, EC2_SSH_KEY), pull latest changes, and execute \`docker compose up -d --build\` with zero downtime.`,
-    copies: 310,
-    likes: [],
-    isFeatured: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: 'seed_prompt_6',
-    title: 'Photorealistic Cinematic Image Architect for Midjourney v6',
-    description: 'Generates detailed, visually stunning Midjourney v6 prompt prompts with photorealistic lighting, 8k resolution, and aspect ratios.',
-    category: 'AI Art & Midjourney',
-    targetModel: 'Midjourney',
-    tags: ['midjourney', 'ai-art', 'cinematic', 'photorealistic'],
-    author: 'Creative AI Director',
-    prompt: `Create a professional Midjourney v6 prompt for [SUBJECT/THEME, e.g. an autonomous cybernetic server room on Mars].
-
-Structure the prompt following modern Midjourney syntax:
-1. Core Subject & Action: Clear, evocative description of the central visual focus.
-2. Art Medium & Style: [e.g. 35mm film photograph, cinematic still, hyper-detailed render].
-3. Environment & Lighting: Volumetric lighting, neon cyan rim lights, foggy atmospheric dust, ray-tracing reflections.
-4. Camera & Lens Specifications: Shot on Sony A7R V, 50mm f/1.2 lens, shallow depth of field, crisp focus.
-5. Parameters: Include essential Midjourney flags (e.g. \`--ar 16:9 --v 6.1 --style raw --q 2 --s 250\`).`,
-    copies: 87,
-    likes: [],
-    isFeatured: false,
-    createdAt: new Date().toISOString(),
-  },
-];
+import { initialSeedPrompts } from '../config/seedPrompts.js';
 
 // In-Memory store fallback
 export let memoryPrompts = [...initialSeedPrompts];
 
-// @desc    Seed default prompts into MongoDB if empty
+// @desc    Seed default prompts into MongoDB if empty or outdated
 export const ensureDefaultPrompts = async () => {
   if (!getMongoStatus()) return;
   try {
-    const count = await Prompt.countDocuments();
-    if (count === 0) {
-      console.log('[PromptVerse] Seeding initial curated AI prompt library into MongoDB...');
-      const adminUser = await User.findOne({ role: 'admin' });
-      const adminId = adminUser ? adminUser._id : null;
+    const adminUser = await User.findOne({ role: 'admin' });
+    const adminId = adminUser ? adminUser._id : null;
+
+    // Check if clean demo library is already active
+    const samplePrompt = await Prompt.findOne({ title: 'React 18 & Tailwind CSS Responsive Hero Component' });
+    if (!samplePrompt) {
+      console.log('[PromptVerse] Loading clean standard demo community prompts library into MongoDB...');
+      // Clean up previous initial prompts
+      await Prompt.deleteMany({
+        author: {
+          $in: [
+            'Staff DevOps Engineer',
+            'Cloud Architect',
+            'AppSec Specialist',
+            'Principal Systems Architect',
+            'DevOps Lead',
+            'Creative AI Director',
+          ],
+        },
+      });
 
       const seedsToInsert = initialSeedPrompts.map((p) => {
         const { _id, ...rest } = p;
@@ -160,7 +40,7 @@ export const ensureDefaultPrompts = async () => {
       });
 
       await Prompt.insertMany(seedsToInsert);
-      console.log(`[PromptVerse] Successfully loaded ${seedsToInsert.length} initial prompts!`);
+      console.log(`[PromptVerse] Successfully loaded ${seedsToInsert.length} clean community demo prompts!`);
     }
   } catch (err) {
     console.error('[PromptVerse] Error seeding default prompts:', err.message);
