@@ -4,8 +4,8 @@ import User from '../models/User.js';
 import { getMongoStatus } from '../config/db.js';
 import { loadStoredUsers, persistUsers } from '../config/storage.js';
 
-const adminEmail = process.env.ADMIN_EMAIL || 'admin@blog.com';
-const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+const adminEmail = process.env.ADMIN_EMAIL || 'admin@devops.com';
+const adminPassword = process.env.ADMIN_PASSWORD || 'admin03042002';
 const hashedAdminPassword = bcrypt.hashSync(adminPassword, 10);
 
 const defaultUsers = [
@@ -22,8 +22,13 @@ const defaultUsers = [
 // Persistent user store
 export let memoryUsers = loadStoredUsers(defaultUsers);
 
-// Ensure admin exists in stored users
-if (!memoryUsers.some((u) => u.email === adminEmail.toLowerCase())) {
+// Ensure admin exists in stored users and has latest credentials
+const memoryAdminIdx = memoryUsers.findIndex((u) => u.role === 'admin' || u.email === adminEmail.toLowerCase());
+if (memoryAdminIdx >= 0) {
+  memoryUsers[memoryAdminIdx].email = adminEmail.toLowerCase();
+  memoryUsers[memoryAdminIdx].password = hashedAdminPassword;
+  persistUsers(memoryUsers);
+} else {
   memoryUsers.unshift(defaultUsers[0]);
   persistUsers(memoryUsers);
 }
@@ -46,16 +51,34 @@ const generateToken = (id) => {
 export const ensureAdminAccount = async () => {
   if (!getMongoStatus()) return;
   try {
-    const existing = await User.findOne({ email: adminEmail.toLowerCase() });
-    if (!existing) {
-      await User.create({
-        name: 'Site Administrator',
-        email: adminEmail.toLowerCase(),
-        password: adminPassword,
-        role: 'admin',
-      });
-      console.log(`[Auth] Master Administrator account provisioned: ${adminEmail}`);
+    // 1. Check if an account already exists with admin@devops.com
+    let existing = await User.findOne({ email: adminEmail.toLowerCase() });
+    if (existing) {
+      existing.password = adminPassword;
+      existing.role = 'admin';
+      await existing.save();
+      console.log(`[Auth] Master Administrator password synchronized: ${adminEmail}`);
+      return;
     }
+
+    // 2. Check if a legacy admin (e.g. admin@blog.com) exists and update it
+    const legacyAdmin = await User.findOne({ role: 'admin' });
+    if (legacyAdmin) {
+      legacyAdmin.email = adminEmail.toLowerCase();
+      legacyAdmin.password = adminPassword;
+      await legacyAdmin.save();
+      console.log(`[Auth] Migrated legacy administrator to: ${adminEmail}`);
+      return;
+    }
+
+    // 3. Provision brand new admin account
+    await User.create({
+      name: 'Site Administrator',
+      email: adminEmail.toLowerCase(),
+      password: adminPassword,
+      role: 'admin',
+    });
+    console.log(`[Auth] Master Administrator account provisioned: ${adminEmail}`);
   } catch (err) {
     console.error('[Auth] Failed to seed admin account in DB:', err.message);
   }
