@@ -266,4 +266,25 @@ Provide:
     isFeatured: true,
     createdAt: new Date().toISOString(),
   },
+  {
+    _id: 'seed_prompt_13',
+    title: 'Standard Multi-Stage Dockerfile for Web Applications',
+    description: 'Generates a clean, simple multi-stage Dockerfile for web apps with dependency caching, port exposure, and a .dockerignore template.',
+    category: 'DevOps & Cloud',
+    targetModel: 'ChatGPT',
+    tags: ['docker', 'devops', 'containers', 'dockerfile'],
+    author: 'DevOps Community',
+    prompt: `Act as a DevOps Engineer. Create a clean, straightforward, production-ready multi-stage Dockerfile for a [FRAMEWORK, e.g. Node.js Express / Python FastAPI / React] application.
+
+Requirements:
+1. Stage 1 (Builder): Install dependencies and build static assets or compile application code.
+2. Stage 2 (Runner): Copy only the needed production artifacts into a lightweight base image (Alpine).
+3. Set the appropriate WORKDIR, expose port [PORT, e.g. 5000 or 80], and specify the CMD startup command.
+4. Include a minimal .dockerignore file with common exclusions (node_modules, .git, .env).
+5. Provide the exact 'docker build' and 'docker run' CLI commands to test it locally.`,
+    copies: 156,
+    likes: [],
+    isFeatured: true,
+    createdAt: new Date().toISOString(),
+  },
 ];

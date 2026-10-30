@@ -13,37 +13,20 @@ export const ensureDefaultPrompts = async () => {
     const adminUser = await User.findOne({ role: 'admin' });
     const adminId = adminUser ? adminUser._id : null;
 
-    // Check if clean demo library is already active
-    const samplePrompt = await Prompt.findOne({ title: 'React 18 & Tailwind CSS Responsive Hero Component' });
-    if (!samplePrompt) {
-      console.log('[PromptVerse] Loading clean standard demo community prompts library into MongoDB...');
-      // Clean up previous initial prompts
-      await Prompt.deleteMany({
-        author: {
-          $in: [
-            'Staff DevOps Engineer',
-            'Cloud Architect',
-            'AppSec Specialist',
-            'Principal Systems Architect',
-            'DevOps Lead',
-            'Creative AI Director',
-          ],
-        },
-      });
-
-      const seedsToInsert = initialSeedPrompts.map((p) => {
-        const { _id, ...rest } = p;
-        return {
+    // Check each initial seed prompt and insert if missing
+    for (const seed of initialSeedPrompts) {
+      const exists = await Prompt.findOne({ title: seed.title });
+      if (!exists) {
+        const { _id, ...rest } = seed;
+        await Prompt.create({
           ...rest,
           user: adminId || '000000000000000000000000',
-        };
-      });
-
-      await Prompt.insertMany(seedsToInsert);
-      console.log(`[PromptVerse] Successfully loaded ${seedsToInsert.length} clean community demo prompts!`);
+        });
+        console.log(`[PromptVerse] Added demo prompt: ${seed.title}`);
+      }
     }
   } catch (err) {
-    console.error('[PromptVerse] Error seeding default prompts:', err.message);
+    console.error('[PromptVerse] Error ensuring default prompts:', err.message);
   }
 };
 
